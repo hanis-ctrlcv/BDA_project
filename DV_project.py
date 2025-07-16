@@ -8,13 +8,19 @@ from shapely.geometry import Point
 
 # Import dataset
 @st.cache_data
-def load_data():
-    df = pd.read_excel('C:/Users/HANIS/Downloads/cleaned_data.xlsx', sheet_name='cleaned_data')
+def load_data(uploaded_file):
+    df = pd.read_excel(uploaded_file, sheet_name='cleaned_data')
     geometry = [Point(xy) for xy in zip(df['Longitude'], df['Latitude'])]
     geo_df = gpd.GeoDataFrame(df, geometry=geometry) 
     return geo_df, df
 
-geo_df, df = load_data()
+uploaded_file = st.sidebar.file_uploader("Upload Cleaned Dataset (.xlsx)", type=["xlsx"])
+
+if uploaded_file is not None:
+    geo_df, df = load_data(uploaded_file)
+else:
+    st.warning("Please upload the cleaned_data.xlsx file to proceed.")
+    st.stop()
 
 # Clean Data
 df = df.dropna(axis=1, how='all')
