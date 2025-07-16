@@ -2,6 +2,7 @@ streamlit
 pandas
 numpy
 plotly
-seaborn
-matplotlib
-scikit-learn
+geopandas
+shapely
+openpyxl
+
