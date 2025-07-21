@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.figure_factory as ff
 import geopandas as gpd
@@ -8,23 +10,19 @@ from shapely.geometry import Point
 
 # Import dataset
 @st.cache_data
-def load_data(uploaded_file):
-    df = pd.read_excel(uploaded_file, sheet_name='cleaned_data')
+def load_data():
+    df = pd.read_excel('C:/Users/HANIS/Downloads/cleaned_data.xlsx', sheet_name='cleaned_data')
     geometry = [Point(xy) for xy in zip(df['Longitude'], df['Latitude'])]
     geo_df = gpd.GeoDataFrame(df, geometry=geometry) 
     return geo_df, df
 
-uploaded_file = st.sidebar.file_uploader("Upload Cleaned Dataset (.xlsx)", type=["xlsx"])
-
-if uploaded_file is not None:
-    geo_df, df = load_data(uploaded_file)
-else:
-    st.warning("Please upload the cleaned_data.xlsx file to proceed.")
-    st.stop()
+geo_df, df = load_data()
 
 # Clean Data
 df = df.dropna(axis=1, how='all')
 df = df.dropna(axis=0, how='all')
+
+
 
 # Columns for correlation analysis
 cols = [
@@ -39,6 +37,26 @@ cols = [
 ]
 renewable_df = df[cols].apply(pd.to_numeric, errors='coerce')
 corr_matrix = renewable_df.corr()
+
+sns.set(style="whitegrid", font_scale=1.1)
+
+# Plot correlation heatmap
+plt.figure(figsize=(14, 10))
+heatmap = sns.heatmap(
+    corr_matrix,
+    annot=True,
+    fmt=".2f",
+    cmap="coolwarm",
+    linewidths=0.5,
+    cbar_kws={"shrink": 0.8}
+)
+
+plt.title("Correlation Matrix Heatmap", fontsize=16)
+plt.xticks(rotation=45, ha='right')
+plt.yticks(rotation=0)
+plt.tight_layout()
+plt.show()
+
 
 # Compute Renewable Potential Index
 df['Renewable Potential Index'] = (
@@ -187,13 +205,6 @@ fig = px.line(
 )
 st.plotly_chart(fig, use_container_width=True)
 
-# Correlation Matrix Section
-st.header(" Variable Correlation Matrix")
-st.markdown("""This table shows the Pearson correlation coefficients between key variables influencing renewable investment decisions.""")
-
-# Correlation table with colored styling
-st.dataframe(corr_matrix.style.background_gradient(cmap='RdBu_r', axis=None), use_container_width=True)
-
 # Optional heatmap (Plotly)
 corr_values = corr_matrix.values.round(2)
 x_labels = list(corr_matrix.columns)
@@ -219,6 +230,38 @@ fig_corr.update_layout(
 )
 st.plotly_chart(fig_corr, use_container_width=True)
 
+
+# Identify promising countries based on stricter investment criteria
+st.header("🌟 Top Recommended Investment Destinations")
+
+# Ensure 'Investment Score' exists or assign it from Renewable Potential Index
+df['Investment Score'] = df['Renewable Potential Index']
+latest_df = df[df['Year'] == year]
+
+# Apply the criteria
+promising_countries = latest_df[
+    (latest_df['Investment Score'] > 0.7) &
+    (latest_df['gdp_per_capita'] > 3000) &
+    (latest_df['Renewable energy share in the total final energy consumption (%)'] > 20)
+].sort_values('Investment Score', ascending=False)
+
+if not promising_countries.empty:
+    st.success("**Top Recommended Investment Destinations:**")
+    cols = st.columns(3)
+    for i, (_, row) in enumerate(promising_countries.head(6).iterrows()):
+        with cols[i % 3]:
+            st.metric(
+                label=row['Entity'],
+                value=f"Score: {row['Investment Score']:.2f}",
+                help=f"""
+                Renewable Share: {row['Renewable energy share in the total final energy consumption (%)']:.1f}%
+                GDP per capita: ${row['gdp_per_capita']:,.0f}
+                CO₂ Emissions: {row['Value_co2_emissions_kt_by_country']:,.0f} kt
+                """
+            )
+else:
+    st.warning("⚠️ No countries meet the recommended investment criteria for the selected year and filters.")
+
 # Methodology
 with st.expander("Methodology"):
     st.markdown("""
@@ -238,3 +281,4 @@ with st.expander("Methodology"):
 
     **Source**: Global Energy Dataset (cleaned_data.xlsx)
     """)
+
